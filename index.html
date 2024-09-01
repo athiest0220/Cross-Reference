@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Perl's Python Power Pricing Part Producing Program</title>
+    <style>
+        body {
+            font-family: Calibri, sans-serif;
+            font-size: 8pt;
+        }
+        h1 {
+            font-size: 24pt; /* Title remains larger */
+        }
+        h2, label, p, th, td, button, textarea {
+            font-family: Calibri, sans-serif;
+            font-size: 8pt;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        #copy_button {
+            margin-bottom: 20px;
+            padding: 5px 10px;
+            font-size: 8pt;
+            cursor: pointer;
+            font-family: Calibri, sans-serif;
+        }
+        textarea {
+            font-family: Calibri, sans-serif;
+            font-size: 8pt;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Perl's Python Power Pricing Part Producing Program</h1>
+<img src="Official MPS.png" alt="MacLean Power Systems Logo" width=300>
+
+    </header>
+
+    <form method="POST" onsubmit="submitForm(event)">
+        {% csrf_token %}
+        <label for="part_numbers">Enter Part Numbers (one per line):</label><br>
+        <textarea id="part_numbers" name="part_numbers" rows="10" cols="50" required></textarea><br>
+        <button type="submit">Search</button>
+    </form>
+
+    <div class="status">
+        <h2>Status</h2>
+        <div id="status_message">Waiting to start...</div>
+        <div id="detail_message"></div>
+    </div>
+    <div class="results">
+        <h2>Results</h2>
+        <button id="copy_button" onclick="copyTable()">Copy to Clipboard</button>
+        <table id="results_table">
+            <thead>
+                <tr>
+                    <th>Input</th>
+                    <th>Match Type</th>
+                    <th>Score</th>
+                    <th>Matched Part</th>
+                    <th>PartNumber</th>
+                    <th>Manufacturer</th>
+                    <th>MPS Catalog Number</th>
+                    <th>Compatibility of Cross</th>
+                    <th>Notes</th>
+                    <th>F</th>
+                    <th>Description</th>
+                    <th>Product Group</th>
+                    <th>Product Type</th>
+                    <th>Status</th>
+                    <th>A/B</th>
+                    <th>Old Manufacturer Name</th>
+                    <th>UniqueKey</th>
+                    <th>Last Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Results will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function sanitizeInput(input) {
+            return input.replace(/[^a-zA-Z0-9]/g, ''); // Remove any character that is not a letter or number
+        }
+
+        function submitForm(event) {
+            event.preventDefault();
+            console.log("Form submitted");
+
+            const textarea = document.getElementById('part_numbers');
+            const rawPartNumbers = textarea.value.split('\n');
+            const sanitizedPartNumbers = rawPartNumbers.map(sanitizeInput).join('\n');
+            
+            // Replace the original value with sanitized value
+            textarea.value = sanitizedPartNumbers;
+
+            const formData = new FormData(event.target);
+            fetch('/', {
+                method: 'POST',
+                body: formData,
+            }).then(response => {
+                console.log("POST request sent, response:", response);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                // Start fetching status immediately
+                fetchStatus();
+            }).catch(error => {
+                console.error("Error submitting form:", error);
+            });
+        }
+
+        function fetchStatus() {
+            console.log("Fetching status...");
+            fetch('/status/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Received status data:", data);
+
+                    document.getElementById('status_message').textContent = data.status_message || "No status message";
+                    document.getElementById('detail_message').textContent = data.detail_message || "No detail message";
+
+                    const resultsTableBody = document.querySelector('#results_table tbody');
+                    resultsTableBody.innerHTML = '';
+
+                    if (data.results && data.results.length > 0) {
+                        data.results.forEach(result => {
+                            const details = result.result || {};
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${result.input_part_number}</td>
+                                <td>${result.match_type}</td>
+                                <td>${result.score}</td>
+                                <td>${details.PartNumber || 'N/A'}</td>
+                                <td>${details.PartNumber || ''}</td>
+                                <td>${details.Manufacturer || ''}</td>
+                                <td>${details.MPS_Catalog_Number || ''}</td>
+                                <td>${details.Compatibility_of_Cross || ''}</td>
+                                <td>${details.Notes || ''}</td>
+                                <td>${details.F || ''}</td>
+                                <td>${details.Description || ''}</td>
+                                <td>${details.Product_Group || ''}</td>
+                                <td>${details.Product_Type || ''}</td>
+                                <td>${details.Status || ''}</td>
+                                <td>${details.A_B || ''}</td>
+                                <td>${details.Old_Manufacturer_Name || ''}</td>
+                                <td>${details.UniqueKey || ''}</td>
+                                <td>${details.Last_Updated || ''}</td>
+                            `;
+                            resultsTableBody.appendChild(row);
+                        });
+                    } else {
+                        const row = document.createElement('tr');
+                        row.innerHTML = '<td colspan="18">No results yet</td>';
+                        resultsTableBody.appendChild(row);
+                    }
+
+                    if (data.status_message !== "Search complete.") {
+                        console.log("Search not complete, fetching again in 1 second");
+                        setTimeout(fetchStatus, 1000);
+                    } else {
+                        console.log("Search complete");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error fetching status:", error);
+                });
+        }
+
+        function copyTable() {
+            const table = document.getElementById("results_table");
+            const range = document.createRange();
+            range.selectNode(table);
+            window.getSelection().removeAllRanges(); // Clear current selection
+            window.getSelection().addRange(range); // Select the table
+            document.execCommand("copy");
+            window.getSelection().removeAllRanges(); // Unselect the table
+            alert("Table copied to clipboard");
+        }
+    </script>
+</body>
+</html>
